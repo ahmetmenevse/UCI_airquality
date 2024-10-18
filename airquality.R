@@ -1,24 +1,24 @@
 # libraries
 library(ggplot2)
-
+library(corrplot) # correlation plot
 # dataset
-airquality <- read.csv('../Datasets/AirQualityUCI.csv')
+airquality <- read.csv('../Datasets/AirQualityUCI.csv', stringsAsFactors = T)
+
+# info about the dataset
+str(airquality)
+summary(airquality)
 
 # Convert Date and Time columns to a single datetime column
 airquality$Date <- as.POSIXct(paste(airquality$Date, airquality$Time), format="%d/%m/%Y %H:%M:%S")
 
-# Remove the Time column
-airquality$Time <- NULL
-
 # replace the missing values -200 with NA
 airquality[airquality == -200 ] <- NA
 
-# info about the dataset
-str(clean_airquality)
-head(clean_airquality)
-
 # check the missing values
 colSums(is.na(airquality))
+
+# Remove the Time column
+airquality$Time <- NULL
 
 # Remove the NMHC_GT (8443 missing values)
 airquality$NMHC_GT <- NULL
@@ -103,4 +103,41 @@ ggplot(clean_airquality, aes(x = AH)) +
   geom_histogram(binwidth = 0.04, fill = "skyblue", color = "black") +
   labs(title = "Histogram of Absolute Humidity", x = "Absolute Humidity") +
   theme_minimal()
+
+# Correlation matrix
+cor_matrix <- cor(clean_airquality[, -1], use = "complete.obs")
+corrplot(cor_matrix, method = 'square', type = 'full', insig='blank',
+         addCoef.col ='black', number.cex = 0.8, diag=FALSE)
+
+###################
+# Time series plot for Benzene(C6H6_GT)
+ggplot(clean_airquality, aes(x = Date, y = C6H6_GT)) +
+  geom_line(colour = 'navy') +
+  labs(title = "Time Series Plots of Benzene", x = "Time", y = "C6H6_GT (microg/m^3)") +
+  theme_minimal()
+
+# Time series plot for CO (GT)
+ggplot(clean_airquality, aes(x = Date, y = CO_GT)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series Plot of CO (GT)", x = "Time", y = "CO (mg/m^3)") +
+  theme_minimal()
+
+# Decomposition (using stl in R for seasonal decomposition)
+# change frequency depends on time period, hourly data = 24, weekly = 168, monthly = 720
+benzene_ts <- ts(clean_airquality$C6H6_GT, frequency = 168) 
+decomposed_benzene <- stl(benzene_ts, s.window = "periodic", robust = T)
+plot(decomposed_benzene)
+
+
+
+
+# Create lag features for CO (e.g., 1 hour, 2 hours, 3 hours)
+clean_airquality$CO_lag1 <- dplyr::lag(clean_airquality$CO_GT, 1)
+clean_airquality$CO_lag2 <- dplyr::lag(clean_airquality$CO_GT, 2)
+clean_airquality$CO_lag3 <- dplyr::lag(clean_airquality$CO_GT, 3)
+
+# Create 24-hour rolling mean for CO
+clean_airquality$CO_rolling_mean <- zoo::rollmean(clean_airquality$CO_GT, k = 24, fill = NA)
+
+
 
