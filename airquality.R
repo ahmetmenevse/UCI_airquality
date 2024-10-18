@@ -129,15 +129,3 @@ decomposed_benzene <- stl(benzene_ts, s.window = "periodic", robust = T)
 plot(decomposed_benzene)
 
 
-
-
-# Create lag features for CO (e.g., 1 hour, 2 hours, 3 hours)
-clean_airquality$CO_lag1 <- dplyr::lag(clean_airquality$CO_GT, 1)
-clean_airquality$CO_lag2 <- dplyr::lag(clean_airquality$CO_GT, 2)
-clean_airquality$CO_lag3 <- dplyr::lag(clean_airquality$CO_GT, 3)
-
-# Create 24-hour rolling mean for CO
-clean_airquality$CO_rolling_mean <- zoo::rollmean(clean_airquality$CO_GT, k = 24, fill = NA)
-
-
-
