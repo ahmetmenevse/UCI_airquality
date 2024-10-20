@@ -1,6 +1,9 @@
 # libraries
+library(dplyr)
 library(ggplot2)
 library(corrplot) # correlation plot
+library(lubridate) # split hours, days and months
+
 # dataset
 airquality <- read.csv('../Datasets/AirQualityUCI.csv', stringsAsFactors = T)
 
@@ -23,9 +26,24 @@ airquality$Time <- NULL
 # Remove the NMHC_GT (8443 missing values)
 airquality$NMHC_GT <- NULL
 
+# Create month, day and hour columns
+airquality <- airquality %>%
+  mutate(hour = hour(Date),
+         weekdays = wday(Date, label = TRUE, week_start = 1), # set start day for monday
+         month = factor(month(Date, label = TRUE, abbr = TRUE), levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")))
+
+# Count rows with missing values for each month
+rows_with_missing_by_month <- airquality %>%
+  group_by(month) %>%
+  summarise(rows_with_missing = sum(if_any(everything(), is.na))) %>%
+  arrange(month)
+
+rows_with_missing_by_month
+
 # remove the missing values
 clean_airquality <- subset(airquality, complete.cases(airquality))
 
+clean_airquality <- subset( is.na != airquality$C6H6_GT)
 # check new dataset
 colSums(is.na(clean_airquality))
 str(clean_airquality)
@@ -105,7 +123,8 @@ ggplot(clean_airquality, aes(x = AH)) +
   theme_minimal()
 
 # Correlation matrix
-cor_matrix <- cor(clean_airquality[, -1], use = "complete.obs")
+# Removed date, hour, day, month columns
+cor_matrix <- cor(clean_airquality[2:13], use = "complete.obs")
 corrplot(cor_matrix, method = 'square', type = 'full', insig='blank',
          addCoef.col ='black', number.cex = 0.8, diag=FALSE)
 
@@ -127,5 +146,60 @@ ggplot(clean_airquality, aes(x = Date, y = CO_GT)) +
 benzene_ts <- ts(clean_airquality$C6H6_GT, frequency = 168) 
 decomposed_benzene <- stl(benzene_ts, s.window = "periodic", robust = T)
 plot(decomposed_benzene)
+
+# create month, day and hour columns
+clean_airquality <- clean_airquality %>% 
+  mutate(hour = hour(Date),
+         weekdays = wday(Date, label = TRUE, week_start = 1), # set start day for monday
+         month = factor(month(Date, label = TRUE, abbr = TRUE), levels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")))
+clean_airquality$month
+
+# Hourly variation plot for benzene
+daily_plot <- clean_airquality %>% 
+  group_by(hour) %>% 
+  summarise(mean_C6H6 = mean(C6H6_GT),
+            sd_C6H6 = sd(C6H6_GT)) %>% 
+  ggplot(aes(x = hour, y = mean_C6H6)) +
+  geom_line(color = 'blue') +
+  geom_point(size = 3, shape = 15, color = "blue") +
+  geom_ribbon(aes(ymin = mean_C6H6 - sd_C6H6, ymax = mean_C6H6 + sd_C6H6), alpha = 0.7, fill = "pink") +
+  labs(x = "Hour", y = "C6H6_GT (microg/m^3)", title = "Hourly Variation") +
+  theme_minimal()
+
+daily_plot
+
+# Weekly variation plot for benzene
+weekly_plot <- clean_airquality %>%
+  group_by(weekdays, hour) %>%
+  summarise(mean_C6H6 = mean(C6H6_GT),
+            sd_C6H6 = sd(C6H6_GT))  %>%
+  ggplot(aes(x = hour, y = mean_C6H6)) +
+  geom_line(color = "blue") +
+  geom_ribbon(aes(ymin = mean_C6H6 - sd_C6H6, ymax = mean_C6H6 + sd_C6H6),  alpha = 0.7, fill = "pink") +
+  facet_wrap(~weekdays, nrow = 1, labeller = labeller(weekdays = c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"))) +
+  scale_x_continuous(breaks = c(0, 6, 12, 18, 23)) +
+  labs(x = "Hour", y = "C6H6_GT (microg/m^3)", title = "Weekly Variation") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.spacing.x = unit(0, "lines"))
+
+weekly_plot
+
+# Monthly variation plot for benzene
+monthly_plot <- clean_airquality %>% 
+  group_by(month) %>% 
+  summarise(mean_C6H6 = mean(C6H6_GT),
+            sd_C6H6 = sd(C6H6_GT)) %>% 
+  ggplot(aes(x = month, y = mean_C6H6, group = 1)) +
+  geom_line(color = 'blue') +
+  geom_point(size = 3, shape = 15, color = "blue") +
+  geom_ribbon(aes(ymin = mean_C6H6 - sd_C6H6, ymax = mean_C6H6 + sd_C6H6), alpha = 0.7, fill = "pink") +
+  labs(x = "Month", y = "C6H6", title = "Monthly Variation") +
+  theme_minimal()
+
+monthly_plot
+
+
+
 
 
