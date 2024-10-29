@@ -7,6 +7,7 @@ library(lubridate) # split hours, days and months
 library(DMwR2)
 library(VIM)
 library(caret)
+library(car)
 
 # Load the dataset
 airquality <- read.csv('../Datasets/AirQualityUCI.csv')
@@ -203,10 +204,12 @@ plot(decomposed_benzene, main = "Decomposition of Benzene Concentration Time Ser
 airquality_transformed <- airquality_knn
 airquality_transformed$C6H6_GT <- log(airquality_knn$C6H6_GT + 1)       
 airquality_transformed$PT08_S3_NOx <- log(airquality_knn$PT08_S3_NOx + 1) 
-airquality_transformed$NOx_GT <- log(airquality_knn$NOx_GT + 1)         
+airquality_transformed$NOx_GT <- log(airquality_knn$NOx_GT + 1)
+
+
 
 # Drop the columns 'month', 'hour', and 'weekdays' if they exist and highle correlated variables 
-airquality_transformed <- airquality_transformed[, !names(airquality_transformed) %in% c("CO_GT", "PT08_S2_NMHC", "PT08_S5_O3", "Date", "month", "hour", "weekdays")]
+airquality_transformed <- airquality_transformed[, !names(airquality_transformed) %in% c("CO_GT", "PT08_S2_NMHC", "T", "Date", "month", "hour", "weekdays")]
 
 #### Linear Model ####
 # Split the train and test split: 70% for training, 30% for testing
@@ -222,6 +225,7 @@ train_data <- train_data[, !(names(train_data) %in% c("C6H6_GT"))]  # Training f
 # Fit a linear regression model using the training set
 linear_model <- lm(train_y ~ ., data = train_data)
 summary(linear_model)
+vif(linear_model)
 
 # Create a sequence index for plotting
 index <- 1:nrow(airquality_transformed)
@@ -320,11 +324,13 @@ cv_linear_model <- function(data, target, folds) {
     test_data <- data[test_index, ]
     test_y <- target[test_index]
     
-    linear_model <- lm(train_y ~ ., data = train_data)
+    cv_linear <- lm(train_y ~ ., data = train_data)
     
     # Print model summary for the current fold
     cat("\n\n--- Model Summary for Fold", i, "---\n")
-    print(summary(linear_model))
+    print(summary(cv_linear))
+    print(vif(cv_linear))
+   
     
     # Print the size of training and test sets for each fold
     cat("\nFold", i, "Training set size:", length(train_index), "Test set size:", length(test_index), "\n")
@@ -388,9 +394,9 @@ folds <- 10
 # Perform cross-validation
 cv_results <- cv_linear_model(data, target, folds)
 
-mae_cv_value <- 1.54369075550381  # Replace with actual MAE from your linear model
-mse_cv_value <- 8.30417782888116  # Replace with actual MSE from your linear model
-rmse_cv_value <- 2.64138117820677
+mae_cv_value <- 1.47228885064888  # Replace with actual MAE from your linear model
+mse_cv_value <- 7.0452728477530  # Replace with actual MSE from your linear model
+rmse_cv_value <- 2.49438440440703
 
 # Plot setup
 n <- nrow(data)  # Total number of data points
@@ -442,7 +448,7 @@ comparison_table <- data.frame(
   )
 )
 
-# write.csv(comparison_table, file = "model_comparison.csv", row.names = FALSE)
+write.csv(comparison_table, file = "model_comparison.csv", row.names = FALSE)
 # Print the comparison table
 print(comparison_table)
 ########################################
