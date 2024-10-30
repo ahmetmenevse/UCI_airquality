@@ -8,6 +8,8 @@ library(DMwR2)
 library(VIM)
 library(caret)
 library(car)
+library(forecast) # ARIMA model
+library(tseries)
 
 # Load the dataset
 airquality <- read.csv('../Datasets/AirQualityUCI.csv')
@@ -193,12 +195,6 @@ monthly_plot <- airquality_knn %>%
 
 monthly_plot
 
-
-### Decomposition ####
-# Change frequency depends on time period, hourly data = 24, weekly = 168, monthly = 720
-benzene_ts <- ts(airquality_knn$C6H6_GT, frequency = 168) 
-decomposed_benzene <- stl(benzene_ts, s.window = "periodic", robust = T)
-plot(decomposed_benzene, main = "Decomposition of Benzene Concentration Time Series")
 
 ### Log Transformations for C6H6_GT, PT08_S3_NOx, and NOx_GT ###
 airquality_transformed <- airquality_knn
@@ -395,7 +391,7 @@ folds <- 10
 cv_results <- cv_linear_model(data, target, folds)
 
 mae_cv_value <- 1.47228885064888  # Replace with actual MAE from your linear model
-mse_cv_value <- 7.0452728477530  # Replace with actual MSE from your linear model
+mse_cv_value <- 7.04527284775303  # Replace with actual MSE from your linear model
 rmse_cv_value <- 2.49438440440703
 
 # Plot setup
@@ -452,3 +448,64 @@ write.csv(comparison_table, file = "model_comparison.csv", row.names = FALSE)
 # Print the comparison table
 print(comparison_table)
 ########################################
+
+### Decomposition ####
+
+# Change frequency depends on time period, hourly data = 24, weekly = 168, monthly = 720
+benzene_ts <- ts(airquality_knn$C6H6_GT, frequency = 168) 
+decomposed_benzene <- stl(benzene_ts, s.window = "periodic", robust = T)
+plot(decomposed_benzene, main = "Decomposition of Benzene Concentration Time Series")
+
+#######ARIMAX##########
+library(forecast)
+
+# Define the response variable
+benzene_log <- log(airquality_transformed$C6H6_GT + 1)
+
+# Define the exogenous variables matrix
+exogenous_vars <- as.matrix(airquality_transformed[, c("PT08_S1_CO", "NOx_GT", "PT08_S4_NO2", "PT08_S3_NOx")])
+
+# Split data into training and test sets
+n <- length(benzene_log)
+train_size <- round(n * 0.75)  # 75% for training
+test_size <- n - train_size    # 25% for testing
+
+# Training and testing data
+train_data <- benzene_log[1:train_size]
+train_exog <- exogenous_vars[1:train_size, ]
+test_exog <- exogenous_vars[(train_size + 1):n, ]
+
+# Fit the ARIMAX model on the training data
+arimax_model <- auto.arima(train_data, xreg = train_exog)
+
+# Summary of the fitted model
+summary(arimax_model)
+
+# Forecast for the test period using the ARIMAX model
+forecast_values <- forecast(arimax_model, xreg = test_exog, h = test_size)
+
+# Plot the forecasted vs actual values
+plot(forecast_values, main = "ARIMAX Model Forecast", ylab = "Log Benzene Concentration")
+lines((train_size + 1):n, benzene_log[(train_size + 1):n], col = "black")  # Add actual values for comparison
+legend("topright", legend = c("Forecast", "Train"), col = c("blue", "black"), lty = 1)
+
+
+# Assuming 'arimax_model' is the fitted ARIMAX model
+checkresiduals(arimax_model)
+
+# Ljung-Box test
+Box.test(arimax_model$residuals, lag = 20, type = "Ljung-Box")
+
+# Back-transform forecasted and actual values to the original scale
+forecast_values_original <- exp(forecast_values$mean) - 1
+actual_values_original <- exp(benzene_log[(train_size + 1):n]) - 1
+
+# Calculate error metrics on the original scale
+error_metrics_original <- data.frame(
+  MAE = mean(abs(forecast_values_original - actual_values_original)),
+  MSE = mean((forecast_values_original - actual_values_original)^2),
+  RMSE = sqrt(mean((forecast_values_original - actual_values_original)^2))
+)
+
+# Print the error metrics
+print(error_metrics_original)
