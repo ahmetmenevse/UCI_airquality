@@ -12,7 +12,7 @@ library(forecast) # ARIMA model
 library(tseries)
 
 # Load the dataset
-airquality <- read.csv('../Datasets/AirQualityUCI.csv')
+airquality <- read.csv('AirQualityUCI.csv')
 
 #### EDA ####
 # info about the dataset
@@ -39,8 +39,9 @@ airquality <- airquality %>%
 # Count rows with missing values for each month
 rows_with_missing_by_month <- airquality %>%
   group_by(month) %>%
-  summarise(rows_with_missing = sum(if_any(everything(), is.na))) %>%
+  summarise(rows_with_missing = sum(rowSums(is.na(across(everything()))) > 0)) %>%
   arrange(month)
+
 
 rows_with_missing_by_month
 # Plot histograms for numerical variables
@@ -282,7 +283,6 @@ rmse <- function(actual, predicted) {
   sqrt(mean((actual - predicted)^2))
 }
 
-
 # Calculate evaluation metrics on the original scale
 mae_value <- mae(test_y_backtransformed, y_pred_linear_backtransformed)
 mse_value <- mse(test_y_backtransformed, y_pred_linear_backtransformed)
@@ -390,8 +390,8 @@ folds <- 10
 # Perform cross-validation
 cv_results <- cv_linear_model(data, target, folds)
 
-mae_cv_value <- 1.47228885064888  # Replace with actual MAE from your linear model
-mse_cv_value <- 7.04527284775303  # Replace with actual MSE from your linear model
+mae_cv_value <- 1.47228885064888  # Replace with actual MAE from the linear model
+mse_cv_value <- 7.04527284775303  # Replace with actual MSE from the linear model
 rmse_cv_value <- 2.49438440440703
 
 # Plot setup
@@ -509,3 +509,4 @@ error_metrics_original <- data.frame(
 
 # Print the error metrics
 print(error_metrics_original)
+
